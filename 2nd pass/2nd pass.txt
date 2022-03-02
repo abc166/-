@@ -1,0 +1,110 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+int main() {
+    FILE* fin, *fout, *fsym, *fop, *flen, *fout2; 
+
+    char text[100];
+    int first_exec = -1;
+    text[0] = '\0';
+    int e = 0;
+
+    fin = fopen("intermediate.txt", "r");
+    flen = fopen("len.txt", "r");
+    fout = fopen("compl.txt", "w");
+    fout2 = fopen("record.txt", "w");
+
+    int len;
+    fscanf(flen, "%d", &len);
+
+    while (!feof(fin)) {
+        int loc;
+        char label[20], instr[20];
+        
+        fscanf(fin, "%x\t%s\t%s\t", &loc, label, instr);
+
+        if (!strcmp(instr, "START")) {
+            int l = strlen(label);
+
+            fprintf(fout2, "H^");
+
+            for (int i = 0; i < 6 - l; ++i) {
+                fprintf(fout2, "_");                
+            }
+
+            fprintf(fout2, "%s^%06x^%06x\n\n", label, loc, len);
+        }
+
+        fop = fopen("optab.txt", "r");
+
+        int is_op = 0; 
+
+        int cophex, csymhex;
+
+        while (!feof(fop)) {
+            char op[20];
+            int ophex;
+
+            fscanf(fop, "%s\t%x", op, &ophex);
+
+            if (!strcmp(op, instr)) {
+                is_op = 1;
+                cophex = ophex;
+                break;
+            }
+        }
+
+        char operand[20];
+        fscanf(fin, "%s\n", operand);
+
+        fsym = fopen("symtab.txt", "r");
+
+        while (!feof(fsym)) {
+            char sym[20];
+            int symhex;
+
+            fscanf(fsym, "%s\t%x", sym, &symhex);
+
+            if (!strcmp(sym, operand)) {
+                csymhex = symhex;
+                break;
+            }
+        }
+
+        fprintf(fout, "%x\t%s\t%s\t%s\t", loc, label, instr, operand);
+
+        if (is_op) {
+            if (first_exec == -1)
+                first_exec = loc;
+
+            fprintf(fout, "%02x%04x", cophex, csymhex);
+            sprintf(text, "%s^%02x%04x", text, cophex, csymhex);
+            e++;
+        }
+
+        else if (!strcmp(instr, "WORD")) {
+            int hex = strtol(operand, '\0', 16);
+            fprintf(fout, "%06x", hex);
+            sprintf(text, "%s^%06x", text, hex);
+            e++;
+        }
+
+        else if (!strcmp(instr, "BYTE")) {
+            int l = strlen(operand);
+
+            for (int i = 2; i < l - 1; ++i) {
+                fprintf(fout, "%02x", operand[i]);
+                sprintf(text, "%s^%02x", text, operand[i]);
+            }
+            e++;
+        }
+
+        fprintf(fout, "\n");
+    }
+
+    fprintf(fout2, "T^%06x^%06x%s\n\n", first_exec, (strlen(text) - e) / 2, text);
+    fprintf(fout2, "E^%06x", first_exec);
+
+    return 0;
+}
